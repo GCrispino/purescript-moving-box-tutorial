@@ -3,6 +3,7 @@ module Main where
 import Prelude
 import Data.Maybe (Maybe(..))
 import Effect (Effect)
+import Effect.Console (log)
 
 import Web.DOM.Document (Document, createElement) as DOM
 import Web.DOM.Element as DOM.Element
@@ -26,6 +27,14 @@ createBoxElement id document = do
     _ <- setStyleProp "background" "#ff4242" boxEl
     pure boxEl
 
+execFrame :: Effect Unit
+execFrame = do
+        log "Request animation frame!!"
+        w <- HTML.window
+        -- Call next frame
+        animationFrameId <- HTML.Window.requestAnimationFrame (execFrame) w
+        pure unit
+
 
 main :: Effect Unit
 main = do
@@ -41,4 +50,8 @@ main = do
 
   boxEl <- createBoxElement "the-box" $ HTML.toDocument d
   newBody <- DOM.appendChild (DOM.Element.toNode boxEl) b
+
+  frameId <- HTML.Window.requestAnimationFrame (
+    execFrame
+  ) w
   pure unit
