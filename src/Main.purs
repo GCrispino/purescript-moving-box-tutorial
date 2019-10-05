@@ -21,8 +21,9 @@ import Direction (Direction(..))
 
 foreign import setStyleProp :: String -> String -> DOM.Element.Element -> Effect Boolean
 
-type State = { dir :: Direction
-    , position :: Number
+type State = { dirHor :: Direction
+    , dirVert :: Direction
+    , position :: Tuple Number Number
     , rafId :: HTML.Window.RequestAnimationFrameId
 }
 
@@ -38,41 +39,52 @@ createBoxElement id document = do
     pure boxEl
 
 getNewDirectionAndDist :: Direction -> Number -> Int -> Effect (Tuple Direction Number)
-getNewDirectionAndDist dir distValPx width = case dir of 
-                            RightDir -> if distValPx >= (toNumber width) - 100.0
+getNewDirectionAndDist dir distValPx widthOrHeight = case dir of 
+                            RightDir -> if distValPx >= (toNumber widthOrHeight) - 100.0
                                 then pure (Tuple LeftDir distValPx)
                                 else pure $ Tuple RightDir (distValPx + 9.0)
-                            _ -> if distValPx <= 0.0
+                            LeftDir -> if distValPx <= 0.0
                                 then pure (Tuple RightDir distValPx)
                                 else pure $ Tuple LeftDir (distValPx - 9.0)
+                            DownDir -> if distValPx >= (toNumber widthOrHeight) - 100.0
+                                then pure (Tuple UpDir distValPx)
+                                else pure $ Tuple DownDir (distValPx + 9.0)
+                            UpDir -> if distValPx <= 0.0
+                                then pure (Tuple DownDir distValPx)
+                                else pure $ Tuple UpDir (distValPx - 9.0)
 
-moveBox :: Direction -> DOM.Element.Element -> Ref State -> Effect Unit
-moveBox hDir el stateRef = do
+moveBox :: Direction -> Direction -> DOM.Element.Element -> Ref State -> Effect Unit
+moveBox hDir vDir el stateRef = do
     -- Read state
     state <- read stateRef
     
     -- Move box
-    let distValPx = state.position
-        distStr   = (show distValPx) <> "px"
+    let Tuple distValPxHor distValPxVert = state.position
+        distStrHor = (show distValPxHor) <> "px"
+        distStrVert = (show distValPxVert) <> "px"
 
-    _ <- setStyleProp "transform" ( "translate(" <> distStr <> ", 0)" ) el
+    _ <- setStyleProp "transform" ( "translate(" <> distStrHor <> ", " <> distStrVert <> ")" ) el
 
     w <- HTML.window
     width <- HTML.Window.innerWidth w
+    height <- HTML.Window.innerHeight w
 
-    Tuple direction newDist <- getNewDirectionAndDist hDir distValPx width
-
+    Tuple hDirection newHDist <- getNewDirectionAndDist hDir distValPxHor width
+    Tuple vDirection newVDist <- getNewDirectionAndDist vDir distValPxVert height
+    let newPosition = Tuple newHDist newVDist
+ 
     -- Call next frame
-    animationFrameId <- HTML.Window.requestAnimationFrame (moveBox direction el stateRef) w
+    animationFrameId <- HTML.Window.requestAnimationFrame (moveBox hDirection vDirection el stateRef) w
 
     -- Update state
-    write { dir: direction
-        , position: newDist
+    write { dirHor: hDirection
+        , dirVert: vDirection
+        , position: newPosition
         , rafId: animationFrameId
     } stateRef
 
-execFrame :: Direction -> DOM.Element.Element -> Ref State -> Effect Unit
-execFrame hDir el stateRef = moveBox hDir el stateRef
+execFrame :: Direction -> Direction -> DOM.Element.Element -> Ref State -> Effect Unit
+execFrame hDir vDir el stateRef = moveBox hDir vDir el stateRef
 
 main :: Effect Unit
 main = do
@@ -87,8 +99,9 @@ main = do
 
   -- Default state
   stateRef <- new {
-    dir: RightDir,
-    position: 0.0,
+    dirHor: RightDir,
+    dirVert: DownDir,
+    position: Tuple 0.0 0.0,
     rafId: defaultId
   }
 
@@ -100,6 +113,6 @@ main = do
   newBody <- DOM.appendChild (DOM.Element.toNode boxEl) b
 
   frameId <- HTML.Window.requestAnimationFrame (
-    execFrame RightDir boxEl stateRef
+    execFrame RightDir DownDir boxEl stateRef
   ) w
   pure unit
